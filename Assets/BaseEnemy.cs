@@ -2,54 +2,79 @@ using UnityEngine;
 
 public class BaseEnemy : MonoBehaviour
 {
-    [SerializeField]
-    protected int currentHP;
+    protected float currentHP;
 
     [SerializeField]
-    protected int maxHP;
+    protected float maxHP;
 
     // Radio de detección 
     [SerializeField]
     protected Senses detectionSenses;
 
-    // Velocidad de movimiento
+    // velocidad de movimiento
     [SerializeField]
     protected SteeringBehaviors steeringBehaviors;
+
+    // MeshRenderer meshRenderer;
 
     [SerializeField]
     protected int attackDamage;
 
-    void Awake()
+    // Start is called once before the first execution of Update after the MonoBehaviour is created
+    void Start()
     {
-        // Verifica si `detectionSenses` y `steeringBehaviors` están asignados
-        if (detectionSenses == null)
-        {
-            detectionSenses = GetComponent<Senses>();
-            if (detectionSenses == null)
-            {
-                Debug.LogError("Senses no asignado en " + gameObject.name);
-            }
-        }
-
-        if (steeringBehaviors == null)
-        {
-            steeringBehaviors = GetComponent<SteeringBehaviors>();
-            if (steeringBehaviors == null)
-            {
-                Debug.LogError("SteeringBehaviors no asignado en " + gameObject.name);
-            }
-        }
+        currentHP = maxHP;
     }
 
     private void FixedUpdate()
     {
-        if (detectionSenses != null && steeringBehaviors != null)
+        // Si el script de Senses ya detectó a alguien.
+        // if(detectionSenses.IsEnemyDetected())
         {
-            GameObject detectedEnemy = detectionSenses.GetDetectedEnemyRef();
-            if (detectedEnemy != null)
+            // entonces podemos setearlo en el script de steering behaviors.
+             if(detectionSenses.GetDetectedEnemyRef()!= null)
             {
-                steeringBehaviors.SetEnemyReference(detectedEnemy); // Ahora usa la instancia correcta
+                Debug.Log("Seteando: " + detectionSenses.GetDetectedEnemyRef().name);
+            }
+            steeringBehaviors.SetEnemyReference(detectionSenses.GetDetectedEnemyRef());
+            steeringBehaviors.obstacleList = detectionSenses.GetDetectedObstacles();
+        }
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+        
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        // si contra quien chocó este enemigo es algo de la capa de Balas del jugador, este enemigo debe de tomar daño.
+        if (other.gameObject.layer == LayerMask.NameToLayer("PlayerBullet"))
+        {
+            // obtenemos el script de bullet de ese gameobject que nos chocó, 
+            Bullet collidingBullet = other.GetComponent<Bullet>();
+            if(collidingBullet == null)
+            {
+                // si no tiene un script de Bullet, entonces no hay nada que hacer,
+                // probablemente a ese "other" le falta que se le asigne el script de bullet.
+                Debug.LogError("error, alguien en la capa PlayerBullet no tiene script de Bullet.");
+                return;
+            }
+
+            // y nos restamos la vida en la cantidad que Bullet nos diga.
+            currentHP -= collidingBullet.GetDamage();
+
+
+            Debug.Log($"perdí {collidingBullet.GetDamage()} de vida, mi vida ahora es: {currentHP}");
+
+
+            // si tu vida llega a 0 o menos, te mueres.
+            if(currentHP <= 0)
+            {
+                Destroy(gameObject);
             }
         }
     }
+
 }
