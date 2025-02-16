@@ -3,225 +3,143 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 
-/*#define SWITCH_OFF 0
-#define SWITCH_ON 1
-#define SWITCH_MEDIUM 2*/
-
+/// <summary>
+/// Clase que implementa diferentes comportamientos de Steering para el movimiento de un agente en Unity.
+/// Permite al enemigo buscar (`Seek`), huir (`Flee`), predecir el movimiento del objetivo (`Pursuit` y `Evade`) 
+/// y evitar obstáculos (`ObstacleAvoidance`).
+/// </summary>
 public class SteeringBehaviors : MonoBehaviour
 {
-    //public bool OnOrOff = false;
-    //public int SwitchState = (int)SwitchStatus.Off;
-
-    //public string SwitchStateString = "Off";
-
-    //public enum SwitchStatus : byte
-    //{
-    //    On,
-    //    Off,
-    //    Medium,
-    //    NotSoMuchButSomething
-    //}
-
-    /*public enum bitMask
-    {
-        mask1 = 1,
-        mask2 = 2,
-        mask3 = 4,
-        mask4 = 8,
-        mask5 = 16,
-        mask6 = 32,
-        mask7 = 64,
-        mask8 = 128,
-    >>
-    <<
-    }*/
-
-    long Value;
-
-    // VENTAJAS DE LOS ENUMS
-    // Legibilidad del código
-    // No hardcodear
-    // optimización
-
-    // Uso de un enum
-
-    //public enum SteeringBehaviorEnum
-    //{
-    //    Seek,
-    //    Flee,
-    //    Pursuit,
-    //    Evade
-    //}
-
-    //public SteeringBehaviorEnum currentSteeringBehavior;
-
+    /// <summary>
+    /// Enum que define las acciones de Steering que puede realizar el enemigo.
+    /// </summary>
     public enum SteeringAction
     {
-        Approach,  // seek y pursuit
-        Escape   // flee y evade
+        Approach,  // Aproximación: incluye Seek y Pursuit.
+        Escape     // Evasión: incluye Flee y Evade.
     }
 
-    public SteeringAction currentSteeringAction = SteeringAction.Approach;
+    public SteeringAction currentSteeringAction = SteeringAction.Approach; // Acción actual del enemigo.
 
-    // Posición
-    // ya la tenemos a través del transform.position
+    // Variables de movimiento
+    protected Vector3 currentVelocity = Vector3.zero; // Velocidad actual del agente.
 
-    // velocidad, cuánto cambia la posición cada X tiempo. // Tiene dirección y magnitud
-    protected Vector3 currentVelocity = Vector3.zero;
-
-    // para limitar la velocidad de este agente en cada cuadro.
     [SerializeField]
-    protected float maxVelocity = 10.0f;
+    protected float maxVelocity = 10.0f; // Velocidad máxima permitida.
 
-    // Aceleración, cuánto cambia la velocidad cada X tiempo. // Tiene dirección y magnitud
-    // protected Vector3 currentAcceleration = new Vector3();
     [SerializeField]
-    protected float maxForce = 2.0f;
+    protected float maxForce = 2.0f; // Fuerza máxima que se puede aplicar al agente.
 
+    // Variables de referencia al objetivo
+    protected GameObject ReferenciaObjetivo; // Referencia al objetivo a seguir o evadir.
+    protected Rigidbody targetRB; // Rigidbody del objetivo (si tiene uno).
 
-    // [SerializeField]
-    // protected PredictableMovement ReferenciaEnemigo;
-    protected GameObject ReferenciaObjetivo;
-    protected Rigidbody targetRB;
+    public List<GameObject> obstacleList = new List<GameObject>(); // Lista de obstáculos detectados.
 
-    // si queda tiempo vemos cómo quedaría con esta forma de implementarlo.
-    // protected PlayerControllerRef = null; 
+    public float RepelRadius = 3; // Radio de repelencia para evitar obstáculos.
+    public float MaxRepelForce = 3; // Fuerza máxima de repulsión aplicada al enemigo.
 
-    public List<GameObject> obstacleList = new List<GameObject>();
+    [SerializeField]
+    protected Rigidbody rb; // Rigidbody del enemigo para manejar su movimiento.
 
-    public float RepelRadius = 3;
-    public float MaxRepelForce = 3;
-
-
+    /// <summary>
+    /// Asigna un nuevo objetivo al enemigo.
+    /// </summary>
+    /// <param name="enemyRef">Objeto a seguir o evadir.</param>
     public void SetEnemyReference(GameObject enemyRef)
     { 
         ReferenciaObjetivo = enemyRef;
-        // Debug.Log($"{name} tiene como objetivo a: {enemyRef.name}");
 
-        // tenemos que checar si hay un rigidbody o no.
-        if(ReferenciaObjetivo != null)
+        // Verifica si el objetivo tiene un Rigidbody.
+        if (ReferenciaObjetivo != null)
         { 
             targetRB = ReferenciaObjetivo.GetComponent<Rigidbody>();
-            if(targetRB == null)
+            if (targetRB == null)
             {
                 Debug.Log("El enemigo referenciado actualmente no tiene Rigidbody. ¿Así debería ser?");
             }
         }
-        // si NO hay un ReferenciaObjetivo, entonces le decimos que el targetRB es null también
         else
         {
             targetRB = null;
         }
     }
 
-    //public void SetEnemyReference(PredictableMovement enemy)
-    //{
-    //    ReferenciaEnemigo = enemy;
-    //}
-
-    [SerializeField]
-    protected Rigidbody rb;
-
-
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
-        
+        // Inicialización del enemigo. (Actualmente vacío).
     }
 
+    /// <summary>
+    /// Calcula la fuerza de dirección hacia el objetivo (Seek).
+    /// </summary>
     protected Vector3 Seek(Vector3 targetPosition)
     {
-        Vector3 steeringForce = Vector3.zero;
+        Vector3 desiredDirection = (targetPosition - transform.position).normalized;
+        Vector3 desiredVelocity = desiredDirection * maxVelocity;
 
-        // La flecha que me lleva hacia mi objetivo lo más rápido que yo podría ir.
-        // el método punta menos cola nos da la flecha hacia el objetivo.
-        Vector3 desiredDirection = targetPosition - transform.position;
-
-        Vector3 desiredDirectionNormalized = desiredDirection.normalized;
-
-        //                      // la pura dirección hacia objetivo * mi máxima velocidad posible
-        Vector3 desiredVelocity = desiredDirectionNormalized        * maxVelocity;
-
-        // Steering = velocidad deseada – velocidad actual
-        steeringForce = desiredVelocity - rb.linearVelocity; // currentVelocity;
-
-        return steeringForce;
+        return desiredVelocity - rb.linearVelocity;
     }
 
+    /// <summary>
+    /// Calcula la fuerza de dirección opuesta al objetivo (Flee).
+    /// </summary>
     protected Vector3 Flee(Vector3 targetPosition)
     {
-        // Flee hace lo mismo que Seek pero en el sentido opuesto.
-        // Lo hacemos del sentido opuesto usando el signo de menos '-'.
         return -Seek(targetPosition);
     }
 
-    // Para pursuit necesitamos conocer la velocidad de nuestro objetivo.
-    Vector3 Pursuit(Vector3 targetPosition, Vector3 targetCurrentVelocity)
+    /// <summary>
+    /// Persigue un objetivo prediciendo su movimiento (Pursuit).
+    /// </summary>
+    protected Vector3 Pursuit(Vector3 targetPosition, Vector3 targetCurrentVelocity)
     {
-        // Cuánta distancia hay entre mi objetivo y yo, dividida entre mi máxima velocidad posible.
         float LookAheadTime = (transform.position - targetPosition).magnitude / maxVelocity;
-
         Vector3 predictedPosition = targetPosition + targetCurrentVelocity * LookAheadTime;
-
         return Seek(predictedPosition);
     }
 
-    Vector3 Evade(Vector3 targetPosition, Vector3 targetCurrentVelocity)
+    /// <summary>
+    /// Evade un objetivo prediciendo su movimiento (Evade).
+    /// </summary>
+    protected Vector3 Evade(Vector3 targetPosition, Vector3 targetCurrentVelocity)
     {
-        // Cuánta distancia hay entre mi objetivo y yo, dividida entre mi máxima velocidad posible.
         float LookAheadTime = (transform.position - targetPosition).magnitude / maxVelocity;
-
         Vector3 predictedPosition = targetPosition + targetCurrentVelocity * LookAheadTime;
-
         return -Seek(predictedPosition);
     }
 
-    Vector3 ObstacleAvoidance(Vector3 obstaclePosition, float RepelRadius, float MaxRepelForce)
+    /// <summary>
+    /// Calcula una fuerza para evitar obstáculos cercanos.
+    /// </summary>
+    protected Vector3 ObstacleAvoidance(Vector3 obstaclePosition, float RepelRadius, float MaxRepelForce)
     {
         Vector3 outVector = Vector3.zero;
-
-        // Devuelve una fuerza proporcional a la posición de nuestro personaje con la de nuestro obstáculo.
-        // La fuerza va a ir desde el obstáculo hacia nuestro personaje.
         Vector3 PuntaMenosCola = transform.position - obstaclePosition;
-        // Qyueremos la dirección de esa flecha.
         Vector3 DireccionPuntaMenosCola = PuntaMenosCola.normalized;
-        // Usamos la distancia entre nuestro personaje y el obstáculo para ver con qué tanta fuerza lo va a repeler.
         float distance = PuntaMenosCola.magnitude;
-        // Entre más grande sea la distancia con respecto al radio de repelencia, menos fuerza nos va a aplicar.
-        // si nuestra distancia fuera 0, nos aplica fuerza máxima.
 
-        if(distance - RepelRadius >= 0)
-        {
-            // entonces no me aplica nada de fuerza.
+        if (distance - RepelRadius >= 0)
             return outVector;
-        }
-        
-        // de lo contrario, estamos dentro del radio de repelencia.
-        // el valor de la resta nos dice qué tan dentro del círculo estamos.
+
         float intersectionDistance = RepelRadius - distance;
-        // si es muy negativo quiere decir que estamos muy dentro,
-        float intersectionPercentage = intersectionDistance / RepelRadius; // esto lo deja en el rango de 0 a 1.
+        float intersectionPercentage = intersectionDistance / RepelRadius;
 
         outVector = DireccionPuntaMenosCola * intersectionPercentage * MaxRepelForce;
-
         return outVector;
     }
 
-    private void FixedUpdate()
+    /// <summary>
+    /// Método FixedUpdate: Se ejecuta en cada frame de física y aplica las fuerzas de Steering al enemigo.
+    /// </summary>
+    void FixedUpdate()
     {
-        Vector3 steeringForce = Vector3.zero;
+        Vector3 steeringForce = Vector3.zero; // Inicializa la fuerza de dirección en cero.
 
-
-
-        // Vector3 steeringForce = Seek(ReferenciaEnemigo.transform.position);
-
-
-        // Vector3 steeringForce = Pursuit(ReferenciaEnemigo.transform.position, ReferenciaEnemigo.rb.linearVelocity );
-
-        // Solo aplicamos Pursuit si el objetivo que estamos persiguiendo tiene un Rigidbody.
+        // Verifica si hay un objetivo a seguir o evadir.
         if (ReferenciaObjetivo != null)
         {
-
+            // Si el objetivo tiene un Rigidbody, usa Pursuit o Evade según la acción actual.
             if (targetRB != null)
             {
                 switch (currentSteeringAction)
@@ -234,7 +152,8 @@ public class SteeringBehaviors : MonoBehaviour
                         break;
                 }
             }
-            else if (ReferenciaObjetivo != null)
+            // Si el objetivo no tiene un Rigidbody, usa Seek o Flee.
+            else
             {
                 switch (currentSteeringAction)
                 {
@@ -246,122 +165,66 @@ public class SteeringBehaviors : MonoBehaviour
                         break;
                 }
             }
-            else
-            {
-                rb.linearVelocity = Vector3.zero;
-            }
 
-            foreach(var obstacle in obstacleList)
+            // Evita obstáculos en la lista.
+            foreach (var obstacle in obstacleList)
             {
                 steeringForce += ObstacleAvoidance(obstacle.transform.position, RepelRadius, MaxRepelForce);
             }
 
-
-            // Debería estar aquí pero ahorita no hace nada, según yo.
+            // Limita la magnitud de la fuerza de Steering para evitar movimientos excesivos.
             steeringForce = Vector3.ClampMagnitude(steeringForce, maxForce);
 
+            // Aplica la fuerza calculada al Rigidbody usando aceleración.
             rb.AddForce(steeringForce, ForceMode.Acceleration);
 
+            // Limita la velocidad del enemigo para que no supere su velocidad máxima.
             rb.linearVelocity = Vector3.ClampMagnitude(rb.linearVelocity, maxVelocity);
 
+            // Debugging: Si la velocidad excede el máximo, muestra un warning en la consola.
             if (rb.linearVelocity.magnitude > maxVelocity)
                 Debug.LogWarning(rb.linearVelocity);
         }
     }
 
+    /// <summary>
+    /// Método OnDrawGizmos: Dibuja indicadores visuales en la escena para depuración.
+    /// </summary>
     private void OnDrawGizmos()
     {
         Vector3 targetPosition = Vector3.zero;
         Vector3 targetCurrentVelocity = Vector3.zero;
 
+        // Si hay un objetivo, obtiene su posición y velocidad (si tiene un Rigidbody).
         if (ReferenciaObjetivo != null)
         {
             targetPosition = ReferenciaObjetivo.transform.position;
             if (targetRB != null)
-            { targetCurrentVelocity = targetRB.linearVelocity; }
+            { 
+                targetCurrentVelocity = targetRB.linearVelocity; 
+            }
         }
 
-        if (targetRB != null)  // solo dibujar lo del pursuit/evade si el objetivo tiene un rigidbody con velocidad.
+        // Si el objetivo tiene un Rigidbody, dibuja la predicción de su posición futura.
+        if (targetRB != null)  
         {
-
             Debug.Log(targetRB.gameObject.name);
-            if(ReferenciaObjetivo == null)
+
+            if (ReferenciaObjetivo == null)
             {
-                Debug.LogError("referencia objetivoi es null");
+                Debug.LogError("ReferenciaObjetivo es null.");
             }
 
             float LookAheadTime = (transform.position - targetPosition).magnitude / maxVelocity;
-
             Vector3 predictedPosition = targetPosition + targetCurrentVelocity * LookAheadTime;
 
             Gizmos.DrawCube(predictedPosition, Vector3.one);
-
             Gizmos.DrawLine(transform.position, predictedPosition);
         }
+        // Si solo hay un objetivo sin Rigidbody, dibuja una línea directa hacia él.
         else if (ReferenciaObjetivo != null)
         {
-            // Si sí hay un objetivo, entonces dibujamos una línea hacia ese objetivo.
             Gizmos.DrawLine(transform.position, ReferenciaObjetivo.transform.position);
         }
-
-        //Gizmos.color = Color.red;
-        //// Hacemos una línea de la velocidad que tiene este agente ahorita.
-        //Gizmos.DrawLine (transform.position, transform.position + rb.linearVelocity.normalized * 3);
-
-        //// Dibujamos las fuerzas.
-        //Gizmos.color = Color.green;
-
-        //Vector3 steeringForce = Vector3.zero;
-
-        //if (targetRB != null && ReferenciaObjetivo != null)
-        //    steeringForce = Pursuit(ReferenciaObjetivo.transform.position, targetCurrentVelocity);
-
-        //steeringForce = Vector3.ClampMagnitude(steeringForce, maxForce);
-
-        //Gizmos.DrawLine(transform.position, transform.position + steeringForce);
-
     }
-
-    // Update is called once per frame
-    /* void Update()
-    {
-        // Para saber hacia dónde ir, aplicamos el método punta menos cola, 
-        // ReferenciaEnemigo va a ser la punta.
-        // La posición del dueño de este script va a ser la Cola del vector.
-        // Vector3 Difference = ReferenciaEnemigo.transform.position - transform.position;
-
-        // le aplicamos la fuerza del seek a nuestro agente.
-        // con esto, no siempre vamos a acelerar la máxima cantidad.
-        Vector3 accelerationVector = Seek(ReferenciaEnemigo.transform.position);
-
-        // nuestra velocidad debe de incrementar de acuerdo a nuestra aceleración.
-        currentVelocity += accelerationVector * Time.deltaTime;
-
-
-        // Queremos obtener velocidad hacia el objetivo.
-        // currentVelocity += Difference;
-        Debug.Log($"currentVelocity antes de limitarla {currentVelocity}");
-
-        // cómo limitan el valor de una variable?
-        if (currentVelocity.magnitude < maxVelocity)
-        {
-            // entonces la velocidad se queda como está, porque no es mayor que max velocity.
-        }
-        else
-        {
-            // si no, haces que la velocidad actual sea igual que la velocidad máxima.
-            currentVelocity = currentVelocity.normalized * maxVelocity;
-            Debug.Log($"currentVelocity después de limitarla {currentVelocity}");
-        }
-
-        //if(Difference.magnitude < DetectionDistance)
-        //{
-        //    // ya lo detectaste.
-        //}
-
-
-
-        // Ahora hacemos que la velocidad cambie nuestra posición conforme al paso del tiempo.
-        transform.position += currentVelocity * Time.deltaTime;
-    }*/
 }

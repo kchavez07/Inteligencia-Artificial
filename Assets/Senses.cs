@@ -5,54 +5,51 @@ using UnityEngine;
 
 public class Senses : MonoBehaviour
 {
-
+    // Lista de enemigos detectados dentro del radio de detección.
     protected List<GameObject> refEnemigosDetectados = new List<GameObject>();
 
+    // Lista de obstáculos detectados dentro del radio de detección.
     protected List<GameObject> refObstaculosDetectados = new List<GameObject>();
 
+    // Método para obtener la lista de obstáculos detectados.
     public List<GameObject> GetDetectedObstacles() { return refObstaculosDetectados; }
 
-    // protected MonoBehaviour 
-    //public LayerMask layerMask;
-
-
-
-    // Manera #1
-    // radio alrededor del dueño de este script en el cual se detectarán gameObjects.
+    // Radio de detección alrededor del dueño de este script.
     [SerializeField]
     protected float DetectionRadius = 12.5f;
 
-    // Manera #2
-    // detectar a través de colliders.
+    // Collider esférico utilizado para detectar objetos mediante colisiones.
     protected SphereCollider visionColliderSphere;
 
-
+    // Variables para el estado de detección de enemigos.
     protected bool isEnemyDetected = false;
-
     protected GameObject detectedEnemy = null;
 
+    // Método para obtener la referencia del enemigo detectado.
     public GameObject GetDetectedEnemyRef()
     {
         return detectedEnemy;
     }
 
+    // Método para comprobar si un enemigo ha sido detectado.
     public bool IsEnemyDetected() { return isEnemyDetected; }
 
+    // Corrutina para desalertar al enemigo después de un tiempo.
     private Coroutine CorrutinaDesalertar;
-
     bool IsAlerted = false;
 
+    // Corrutina que espera 5 segundos antes de cambiar el estado a desalerta.
     private IEnumerator Desalertar()
     {
         yield return new WaitForSeconds(5);
-
         Debug.LogWarning("Pasamos a desalerta");
         IsAlerted = false;
     }
 
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
+    // Método Start, llamado antes del primer frame.
     void Start()
     {
+        // Obtiene el componente SphereCollider y ajusta su radio de detección.
         visionColliderSphere = GetComponent<SphereCollider>();
         if (visionColliderSphere != null)
         {
@@ -60,169 +57,136 @@ public class Senses : MonoBehaviour
         }
     }
 
+    // Método llamado cuando otro objeto entra en el área de detección.
     private void OnTriggerEnter(Collider other)
     {
-        Debug.Log($"entró a colisión con: {other.gameObject.name}");
-        // si alguien choca contra nuestro visionColliderSphere,
-        // entonces alguien acaba de entrar a nuestro rango de visión.
+        Debug.Log($"Entró a colisión con: {other.gameObject.name}");
 
+        // Si el objeto detectado pertenece a la capa "Player", se agrega a la lista de enemigos detectados.
         if(other.gameObject.layer == LayerMask.NameToLayer("Player"))
         {
-            //Debug.Log(layerMask.ToString());
-            //Debug.Log( LayerMask.GetMask(layerMask.ToString()));
-            // si quien chocó conmigo es un player, lo añado a las entidades que están en mi rango de visión.
             refEnemigosDetectados.Add(other.gameObject);
-            // Si detectamos de nuevo al player, pues le decimos que cancele el desalertar
-            //Si la corrutina no es nula entonces mandamos a llamar stop corrutine 
+
+            // Si la corrutina de desalerta está activa, se detiene para evitar la desalerta prematura.
             if(CorrutinaDesalertar != null)
             {
-                 StopCoroutine( CorrutinaDesalertar );
+                 StopCoroutine(CorrutinaDesalertar);
             }
             IsAlerted = true;
         }
-        // tenerlo como else hace que le dé prioridad al player.
+        // Si el objeto pertenece a la capa "Waypoints", se agrega a la lista de enemigos detectados.
         else if(other.gameObject.layer == LayerMask.NameToLayer("Waypoints")) 
         {
             refEnemigosDetectados.Add(other.gameObject);
         }
+        // Si el objeto pertenece a la capa "Obstacle", se agrega a la lista de obstáculos detectados.
         else if (other.gameObject.layer == LayerMask.NameToLayer("Obstacle"))
         {
             refObstaculosDetectados.Add(other.gameObject);
         }
-
     }
 
+    // Método llamado cuando un objeto sale del área de detección.
     private void OnTriggerExit(Collider other)
     {
         Debug.Log($"Salió de colisión con: {other.gameObject.name}");
 
-        // si alguien deja de chocar contra nuestro visionColliderSphere,
-        // entonces ya lo vamos a quitar de nuestros enemigos conocidos.
+        // Si el objeto es un jugador, se elimina de la lista y se inicia la corrutina de desalerta.
         if (other.gameObject.layer == LayerMask.NameToLayer("Player"))
         {
-            // si quien chocó conmigo es un player, lo añado a las entidades que están en mi rango de visión.
             refEnemigosDetectados.Remove(other.gameObject);
             CorrutinaDesalertar = StartCoroutine(Desalertar());
         }
+        // Si el objeto es un Waypoint, se elimina de la lista de enemigos detectados.
         else if (other.gameObject.layer == LayerMask.NameToLayer("Waypoints"))
         {
             refEnemigosDetectados.Remove(other.gameObject);
         }
+        // Si el objeto es un obstáculo, se elimina de la lista de obstáculos detectados.
         else if (other.gameObject.layer == LayerMask.NameToLayer("Obstacle"))
         {
             refObstaculosDetectados.Remove(other.gameObject);
         }
     }
 
+    // Método para verificar si un objeto está dentro del radio de detección.
     public bool IsInsideRadius(Vector3 pos1, Vector3 pos2, float radius)
     {
-        if ((pos1 - pos2).magnitude <= radius)
-            return true;
-
-        return false;
+        return (pos1 - pos2).magnitude <= radius;
     }
 
-    // Qué es una sobrecarga de función? (function overload)
+    // Sobrecarga del método IsInsideRadius para aceptar GameObjects en lugar de posiciones Vector3.
     public bool IsInsideRadius(GameObject pos1, GameObject pos2, float radius)
     {
         return IsInsideRadius(pos1.transform.position, pos2.transform.position, radius);
     }
 
+    // Método para obtener los objetos cercanos dentro de un radio específico.
     public List<GameObject> GetNearbyObjects(Vector3 originPosition, float radius)
     {
-        List<GameObject> nearbyObjects = new List<GameObject> ();
+        List<GameObject> nearbyObjects = new List<GameObject>();
 
+        // Encuentra todos los objetos en la escena.
         GameObject[] foundObjects = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.InstanceID);
 
         foreach (GameObject obj in foundObjects)
         {
-            if (obj == this.gameObject) // ignorar al dueño de este script, para que no se encuentre a sí mismo.
+            if (obj == this.gameObject) // Ignorar el dueño del script.
                 continue;
 
-            // Si este encontrado está suficientemente cerca, pues lo meto en la lista
-            if(IsInsideRadius(originPosition, obj.transform.position, radius) )
+            // Si el objeto está dentro del radio, se añade a la lista.
+            if(IsInsideRadius(originPosition, obj.transform.position, radius))
             {
                 nearbyObjects.Add(obj);
             }
-            // si no, pues no hacemos nada con él.
         }
 
         return nearbyObjects;
-        
     }
 
     private void FixedUpdate()
     {
-
-        // refEnemigosDetectados = GetNearbyObjects(transform.position, DetectionRadius);
-
-        // que nos ordene los objetivos encontrados por algún parámetro, por ejemplo, la distancia de menor a mayor.
-        // refEnemigosDetectados.Sort()
         float bestDistance = float.MaxValue;
         GameObject nearestGameObj = null;
-        foreach ( GameObject obj in refEnemigosDetectados)
+
+        // Busca el objeto más cercano dentro de los enemigos detectados.
+        foreach (GameObject obj in refEnemigosDetectados)
         {
             float currentDistance = (transform.position - obj.transform.position).magnitude;
             if (currentDistance < bestDistance)
             {
                 Debug.LogWarning("" + obj.name);
-                // esta es nuestra nueva mejor distancia, y guardamos a cuál Objeto se refiere.
                 bestDistance = currentDistance;
                 nearestGameObj = obj;
             }
         }
 
-        if(nearestGameObj != null)
-        {
-            isEnemyDetected = true;
-        }
-        else
-        {
-            isEnemyDetected = false;
-        }
+        // Si hay un enemigo detectado, se marca como detectado, en caso contrario se limpia la detección.
+        isEnemyDetected = nearestGameObj != null;
         detectedEnemy = nearestGameObj;
-
-
-        //// Queremos saber la distancia entre el GameObject dueño de este script y el Enemigo.
-        //// if ((gameObject.transform.position - ReferenciaEnemigo.transform.position).magnitude
-        ////    <= DetectionRadius)
-        //if (IsInsideRadius(gameObject, ReferenciaEnemigo, DetectionRadius))
-        //{
-        //    isEnemyDetected = true;
-        //    detectedEnemy = ReferenciaEnemigo.gameObject;
-        //    // Debug.Log("Hora de correr");
-        //    Debug.Log("Enemigo está dentro del radio de detección.");
-        //}
-        //else
-        //{
-        //    isEnemyDetected = false;
-        //}
     }
 
+    // Método para visualizar el radio de detección en la escena de Unity.
     private void OnDrawGizmos()
     {
-        // lo tenemos que dibujar incluso aunque aún no hayamos detectado al enemigo, 
-        // para poder visualizar mejor ese radio.
         Gizmos.color = Color.green;
 
+        // Si hay un enemigo detectado dentro del radio, cambia el color a rojo.
         if (detectedEnemy != null)
-        {        // Queremos saber la distancia entre el GameObject dueño de este script y el Enemigo.
+        {        
             if (IsInsideRadius(gameObject, detectedEnemy, DetectionRadius))
             {
                 Gizmos.color = Color.red;
             }
         }
 
-        // haya detectado o no al enemigo debe dibujar la esfera de detección.
+        // Dibuja el radio de detección.
         Gizmos.DrawWireSphere(transform.position, DetectionRadius);
-
     }
 
-
-    // Update is called once per frame
+    // Método Update vacío. Se puede utilizar para futuras actualizaciones.
     void Update()
     {
-
 
     }
 }

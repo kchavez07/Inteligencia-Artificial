@@ -2,28 +2,43 @@ using UnityEngine;
 
 public class BaseEnemy : MonoBehaviour
 {
+    // Vida actual del enemigo.
     protected float currentHP;
-    [SerializeField] protected float maxHP = 10;
-    [SerializeField] protected int attackDamage = 1;
-    [SerializeField] protected float moveSpeed = 2f;
-    [SerializeField] protected float detectionRange = 50f;
 
-    protected Rigidbody rb;
-    protected Transform player;
-    protected SteeringBehaviors steering; // 🔹 Integración con SteeringBehaviors
+    [SerializeField] 
+    protected float maxHP = 10; // Vida máxima del enemigo.
 
+    [SerializeField] 
+    protected int attackDamage = 1; // Daño que inflige el enemigo al atacar.
+
+    [SerializeField] 
+    protected float moveSpeed = 2f; // Velocidad de movimiento del enemigo.
+
+    [SerializeField] 
+    protected float detectionRange = 50f; // Rango de detección del jugador.
+
+    // Componentes del enemigo.
+    protected Rigidbody rb; // Referencia al Rigidbody del enemigo.
+    protected Transform player; // Referencia al jugador.
+    protected SteeringBehaviors steering; // 🔹 Integración con SteeringBehaviors para el movimiento.
+
+    /// <summary>
+    /// Método Start: Inicializa el enemigo asignando sus componentes y verificando si el jugador existe en la escena.
+    /// </summary>
     protected virtual void Start()
     {
         rb = GetComponent<Rigidbody>();
-        rb.freezeRotation = true;
-        rb.useGravity = false;
-        currentHP = maxHP;
-        steering = GetComponent<SteeringBehaviors>(); // 🔹 Verifica si este enemigo usa SteeringBehaviors
+        rb.freezeRotation = true; // Evita que el Rigidbody rote automáticamente.
+        rb.useGravity = false; // Desactiva la gravedad para enemigos flotantes o aéreos.
 
+        currentHP = maxHP; // Inicializa la vida del enemigo.
+        steering = GetComponent<SteeringBehaviors>(); // 🔹 Verifica si este enemigo usa SteeringBehaviors.
+
+        // Busca al jugador en la escena utilizando la etiqueta "Player".
         GameObject playerObject = GameObject.FindWithTag("Player");
         if (playerObject != null)
         {
-            player = playerObject.transform;
+            player = playerObject.transform; // Asigna la referencia del jugador.
         }
         else
         {
@@ -31,23 +46,68 @@ public class BaseEnemy : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Método FixedUpdate: Maneja el movimiento del enemigo en cada frame de física.
+    /// </summary>
     protected virtual void FixedUpdate()
     {
-        if (player == null) return;
+        if (player == null) return; // Si no hay jugador, no hace nada.
 
-        // 🔹 Si tiene SteeringBehaviors, deja que ese script maneje el movimiento
+        // 🔹 Si el enemigo tiene SteeringBehaviors, delega el movimiento a ese script.
         if (steering != null)
         {
-            steering.SetEnemyReference(player.gameObject); // Asegura que siga al jugador
+            steering.SetEnemyReference(player.gameObject); // Asegura que siga al jugador.
             return;
         }
 
-        // 🔹 Si NO tiene SteeringBehaviors, usa el movimiento normal
+        // 🔹 Si NO tiene SteeringBehaviors, usa el movimiento normal basado en la distancia al jugador.
         float distanceToPlayer = Vector3.Distance(transform.position, player.position);
-        if (distanceToPlayer <= detectionRange)
+        if (distanceToPlayer <= detectionRange) // Si el jugador está dentro del rango de detección.
         {
-            Vector3 direction = (player.position - transform.position).normalized;
-            rb.MovePosition(rb.position + direction * moveSpeed * Time.fixedDeltaTime);
+            Vector3 direction = (player.position - transform.position).normalized; // Calcula la dirección hacia el jugador.
+            rb.MovePosition(rb.position + direction * moveSpeed * Time.fixedDeltaTime); // Mueve al enemigo en esa dirección.
+        }
+    }
+
+    /// <summary>
+    /// Método para recibir daño.
+    /// </summary>
+    /// <param name="damage">Cantidad de daño recibido.</param>
+    public void TakeDamage(float damage)
+    {
+        currentHP -= damage; // Reduce la vida del enemigo.
+        Debug.Log($"{name} recibió {damage} de daño. HP restante: {currentHP}");
+
+        if (currentHP <= 0) // Si la vida del enemigo llega a 0, muere.
+        {
+            Die();
+        }
+    }
+
+    /// <summary>
+    /// Método para manejar la muerte del enemigo.
+    /// </summary>
+    protected virtual void Die()
+    {
+        Debug.Log($"{name} ha sido destruido."); // Mensaje de depuración.
+        Destroy(gameObject); // Elimina al enemigo de la escena.
+    }
+
+    /// <summary>
+    /// Método llamado cuando otro objeto entra en el área de colisión del enemigo.
+    /// </summary>
+    /// <param name="other">Collider del objeto que entró en contacto.</param>
+    private void OnTriggerEnter(Collider other)
+    {
+        // Si el objeto es una bala del jugador, el enemigo recibe daño.
+        if (other.gameObject.CompareTag("PlayerBullet"))
+        {
+            Bullet bullet = other.GetComponent<Bullet>(); // Obtiene la referencia al script de la bala.
+            if (bullet != null)
+            {
+                TakeDamage(bullet.GetDamage()); // Aplica el daño al enemigo.
+                Destroy(other.gameObject); // Destruye la bala tras el impacto.
+            }
         }
     }
 }

@@ -1,57 +1,51 @@
 using UnityEngine;
 
+/// <summary>
+/// Clase que representa una bala en el juego.
+/// Su principal función es detectar colisiones y aplicar daño.
+/// </summary>
 public class Bullet : MonoBehaviour
 {
     [SerializeField]
-    protected LayerMask mask;
+    protected LayerMask mask; // Máscara de colisión que define qué objetos pueden ser impactados por la bala.
 
-    // qué tanto daño va a hacer esta bala al colisionar contra algo.
     [SerializeField]
-    protected float damage;
+    protected float damage; // Cantidad de daño que la bala inflige al impactar.
 
+    /// <summary>
+    /// Devuelve la cantidad de daño que hace la bala.
+    /// </summary>
+    /// <returns>Valor de daño de la bala.</returns>
     public float GetDamage() { return damage; }
 
-    // lo único que necesita saber una bala es saber cuándo choca.
+    /// <summary>
+    /// Detecta si la bala impacta contra un objeto dentro de la capa especificada.
+    /// </summary>
+    /// <param name="other">Collider del objeto con el que la bala colisiona.</param>
     private void OnTriggerEnter(Collider other)
     {
-        // queremos que sí choque contra Enemigos (Enemy), Paredes (Wall), Obstáculos (Obstacle)
+        // Obtiene el valor de la capa del objeto con el que colisionó.
         var maskValue = 1 << other.gameObject.layer;
-        var maskANDmaskValue = (maskValue & mask.value);
+        var maskANDmaskValue = (maskValue & mask.value); // Comprueba si la capa está en la máscara de colisión.
 
-        // esto es una sola comprobación para filtrar todas las capas que no nos interesan.
+        // Si el objeto está en una de las capas permitidas (Enemigos, Paredes, Obstáculos), se destruye la bala.
         if (maskANDmaskValue > 0)  
         {
-            // Debug.Log("Choque con algo en la capa" + LayerMask.LayerToName(other.gameObject.layer) );
+            // Debug.Log("Choque con algo en la capa " + LayerMask.LayerToName(other.gameObject.layer));
 
-            // Vamos a destruir nuestra bala, porque la mayoría de las balas se destruyen al tocar algo.
-            // Si necesitáramos una bala que se comporte distinto, le podemos hacer override a OnTriggerEnter
-            // en la clase específica de esa bala.
+            // Destruye la bala tras la colisión.
             Destroy(gameObject);
         }
-
     }
 
-    //private void OnCollisionEnter(Collision collision)
-    //{
-    //    Debug.Log("colisión con algo en la capa" + LayerMask.LayerToName(collision.gameObject.layer));
-
-    //    // queremos que sí choque contra Enemigos (Enemy), Paredes (Wall), Obstáculos (Obstacle)
-    //    var maskValue = 1 << collision.gameObject.layer;
-    //    if (~(maskValue & mask.value) == 1)
-    //    {
-    //        Debug.Log("Choque con algo en la capa" + LayerMask.LayerToName(collision.gameObject.layer));
-    //    }
-    //}
-
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
+    // Métodos Start y Update no implementados actualmente.
     void Start()
     {
-        
+        // Método vacío por si en el futuro se requiere inicialización específica.
     }
 
-    // Update is called once per frame
     void Update()
     {
-        
+        // Método vacío por si en el futuro se requiere lógica en cada frame.
     }
 }

@@ -2,59 +2,53 @@ using UnityEngine;
 
 public class PredictableMovement : SteeringBehaviors
 {
-
-    // Tener los waypoints que nuestro agente va a visitar en el orden en que estén.
+    // Lista de waypoints que el agente visitará en orden
     [SerializeField]
     GameObject[] waypoints;
 
-    // Nos dice a  cuál waypoint se va a dirigir actualmente.
+    // Índice del waypoint actual al que se dirige
     private int currentTargetWaypoint = 0;
     
+    // Radio de aceptación para determinar si el agente ha llegado al waypoint
     [SerializeField]
     private float acceptanceRadius = 3;
 
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
+    // Inicialización del script
     void Start()
     {
-        
+        // No se realiza ninguna acción en Start, ya que el comportamiento es gestionado en FixedUpdate
     }
 
-    
-
-    // Update is called once per frame
+    // Método llamado en cada frame de actualización de físicas
     void FixedUpdate()
     {
-        // Checar si ya llegó Cerca de ese waypoint.
-        // Decimos que algo está cerca cuando la distancia hacia ese algo no es tan grande.
-        // ¿en este caso, qué es Grande?
-
+        // Verifica si el agente ha llegado al waypoint actual
         if( (transform.position - waypoints[currentTargetWaypoint].transform.position).magnitude < 
             acceptanceRadius)
         {
-            // Entonces ya llegó y ahora se mueve hacia el siguiente waypoint.
+            // Cambia al siguiente waypoint en la secuencia
             currentTargetWaypoint++;
+            
+            // Si se llegó al final de la lista, vuelve al primer waypoint
             if (currentTargetWaypoint >= waypoints.Length)
             {
                 currentTargetWaypoint = 0;
             }
-            // currentTargetWaypoint = currentTargetWaypoint % waypoints.Length; // daría lo mismo que el if de arriba
-            //
-
-            // Gizmos
-            // .
         }
 
-        // Hacemos seek hacia el waypoint que actualmente queremos llegar.
+        // Calcula la fuerza de dirección hacia el waypoint actual
         Vector3 steeringForce = Seek(waypoints[currentTargetWaypoint].transform.position);
 
+        // Aplica la fuerza de dirección al Rigidbody para mover el agente
         rb.AddForce(steeringForce, ForceMode.Acceleration);
-
     }
 
+    // Dibuja un gizmo para visualizar el radio de aceptación de los waypoints en el editor
     void OnDrawGizmos()
     {
-        // vamos a dibujar el radio de aceptación alrededor de nuestros waypoints.
-        Gizmos.DrawWireSphere(waypoints[currentTargetWaypoint].transform.position, acceptanceRadius);
-
+        if (waypoints.Length > 0)
+        {
+            Gizmos.DrawWireSphere(waypoints[currentTargetWaypoint].transform.position, acceptanceRadius);
+        }
     }
 }
