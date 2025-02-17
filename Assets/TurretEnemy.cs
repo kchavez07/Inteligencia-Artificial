@@ -2,74 +2,60 @@ using UnityEngine;
 using System.Collections;
 
 /// <summary>
-/// Enemigo tipo torreta que gira en busca del jugador y dispara cuando lo detecta.
+/// Enemigo tipo torreta que dispara cuando el jugador entra en su rango de detección.
 /// Hereda de <see cref="BaseEnemy"/>.
 /// </summary>
 public class TurretEnemy : BaseEnemy
 {
-    [SerializeField] private float visionAngle = 45f; // Ángulo del cono de visión.
-    [SerializeField] private float visionDistance = 10f; // Distancia máxima de detección del jugador.
-    [SerializeField] private float rotationSpeed = 30f; // Velocidad de rotación cuando busca al jugador.
-    [SerializeField] private float detectCooldown = 3f; // Tiempo antes de volver a girar tras perder al jugador.
-    [SerializeField] private GameObject bulletPrefab; // Prefab de la bala que dispara la torreta.
-    [SerializeField] private Transform firePoint; // Punto desde donde se disparan las balas.
+    [SerializeField] private float visionAngle = 360f; // **Ángulo de visión (Círculo completo).**
+    [SerializeField] private float visionDistance = 45f; // **Distancia máxima de detección del jugador.**
+    [SerializeField] private float detectCooldown = 3f; // **Tiempo antes de dejar de disparar tras perder al jugador.**
+    [SerializeField] private GameObject bulletPrefab; // **Prefab de la bala que dispara la torreta.**
+    [SerializeField] private Transform firePoint; // **Punto desde donde se disparan las balas.**
+    [SerializeField] private LayerMask playerLayer; // **Capa del jugador para optimizar el Raycast.**
 
-    private bool isTracking = false; // Indica si la torreta está siguiendo al jugador.
-    private Coroutine detectionCoroutine; // Referencia a la corrutina de disparo.
+    private bool isTracking = false; // **Indica si la torreta está disparando al jugador.**
+    private Coroutine detectionCoroutine; // **Referencia a la corrutina de disparo.**
 
     /// <summary>
-    /// Método FixedUpdate: Controla la rotación y detección del jugador.
+    /// Método FixedUpdate: Detecta si el jugador está en su rango.
     /// </summary>
     protected override void FixedUpdate()
     {
-        if (player == null) return; // Si no hay jugador, no hace nada.
-
-        if (!isTracking)
-        {
-            // Si no ha detectado al jugador, rota buscando objetivos.
-            transform.Rotate(Vector3.up * rotationSpeed * Time.fixedDeltaTime);
-        }
-
-        CheckForPlayer(); // Verifica si el jugador está en su campo de visión.
+        if (player == null) return; // **Si no hay jugador, no hace nada.**
+        
+        CheckForPlayer(); // **Verifica si el jugador está en su rango de disparo.**
     }
 
     /// <summary>
-    /// Comprueba si el jugador está dentro del rango de detección y sin obstáculos en la línea de visión.
+    /// Comprueba si el jugador está dentro del rango de detección.
     /// </summary>
     private void CheckForPlayer()
     {
         Vector3 directionToPlayer = (player.position - transform.position).normalized;
-        float angleToPlayer = Vector3.Angle(transform.forward, directionToPlayer);
         float distanceToPlayer = Vector3.Distance(transform.position, player.position);
+        float angleToPlayer = Vector3.Angle(transform.forward, directionToPlayer);
 
-        // Verifica si el jugador está dentro del rango y del ángulo de visión de la torreta.
+        // **Si el jugador está dentro del rango y en el círculo de visión, empieza a disparar.**
         if (distanceToPlayer <= visionDistance && angleToPlayer <= visionAngle / 2)
         {
-            RaycastHit hit;
-            if (Physics.Raycast(transform.position, directionToPlayer, out hit, visionDistance))
+            if (!isTracking)
             {
-                if (hit.collider.CompareTag("Player"))
-                {
-                    if (!isTracking)
-                    {
-                        isTracking = true;
-                        Debug.Log("🔫 Torreta detectó al jugador, deteniendo rotación y disparando...");
-                        StopAllCoroutines();
-                        detectionCoroutine = StartCoroutine(ShootAtPlayer());
-                    }
-                }
+                isTracking = true;
+                StopAllCoroutines(); // **Detiene cualquier cooldown previo.**
+                detectionCoroutine = StartCoroutine(ShootAtPlayer()); // **Empieza a disparar.**
             }
         }
         else if (isTracking)
         {
-            // Si el jugador sale de su visión, inicia el cooldown antes de volver a girar.
+            // **Cuando el jugador sale del rango, inicia cooldown antes de dejar de disparar.**
             isTracking = false;
-            StartCoroutine(ResetTurret());
+            StartCoroutine(StopShootingAfterCooldown());
         }
     }
 
     /// <summary>
-    /// Corrutina que hace que la torreta dispare continuamente mientras detecte al jugador.
+    /// Corrutina que hace que la torreta dispare continuamente mientras el jugador esté en rango.
     /// </summary>
     private IEnumerator ShootAtPlayer()
     {
@@ -77,41 +63,34 @@ public class TurretEnemy : BaseEnemy
         {
             if (bulletPrefab != null && firePoint != null)
             {
-                // Instancia la bala en el punto de disparo.
+                // **Instancia la bala en el punto de disparo.**
                 GameObject bullet = Instantiate(bulletPrefab, firePoint.position, firePoint.rotation);
                 Rigidbody bulletRb = bullet.GetComponent<Rigidbody>();
 
                 if (bulletRb != null)
                 {
-                    Vector3 direction = (player.position - firePoint.position).normalized;
-                    bulletRb.linearVelocity = direction * 20f; // Asigna velocidad a la bala.
+                    bulletRb.linearVelocity = firePoint.forward * 20f; // **Dispara en la dirección del FirePoint.**
                 }
             }
-            yield return new WaitForSeconds(1f); // 🔫 Dispara cada segundo.
+            yield return new WaitForSeconds(1f); // **🔫 Dispara cada segundo.**
         }
     }
 
     /// <summary>
-    /// Corrutina que reinicia la torreta después de perder al jugador.
+    /// Corrutina que espera antes de detener el disparo tras perder al jugador.
     /// </summary>
-    private IEnumerator ResetTurret()
+    private IEnumerator StopShootingAfterCooldown()
     {
         yield return new WaitForSeconds(detectCooldown);
-        Debug.Log("🔄 Torreta no detecta al jugador, reanudando rotación...");
+        Debug.Log("🔄 Torreta perdió de vista al jugador. Dejando de disparar...");
     }
 
     /// <summary>
-    /// Método OnDrawGizmos: Dibuja el cono de visión en la escena para depuración.
+    /// Método OnDrawGizmos: Dibuja el círculo rojo en la escena para depuración.
     /// </summary>
     private void OnDrawGizmos()
     {
         Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(transform.position, visionDistance);
-
-        Vector3 leftBoundary = Quaternion.Euler(0, -visionAngle / 2, 0) * transform.forward;
-        Vector3 rightBoundary = Quaternion.Euler(0, visionAngle / 2, 0) * transform.forward;
-
-        Gizmos.DrawLine(transform.position, transform.position + leftBoundary * visionDistance);
-        Gizmos.DrawLine(transform.position, transform.position + rightBoundary * visionDistance);
+        Gizmos.DrawWireSphere(transform.position, visionDistance); // **Dibuja el círculo de visión.**
     }
 }

@@ -5,17 +5,20 @@ public class BaseEnemy : MonoBehaviour
     // Vida actual del enemigo.
     protected float currentHP;
 
-    [SerializeField] 
+    [SerializeField]
     protected float maxHP = 10; // Vida máxima del enemigo.
 
-    [SerializeField] 
+    [SerializeField]
     protected int attackDamage = 1; // Daño que inflige el enemigo al atacar.
 
-    [SerializeField] 
+    [SerializeField]
     protected float moveSpeed = 2f; // Velocidad de movimiento del enemigo.
 
-    [SerializeField] 
+    [SerializeField]
     protected float detectionRange = 50f; // Rango de detección del jugador.
+
+    [SerializeField]
+    private LayerMask bulletLayer; // **Nueva variable para detectar balas usando LayerMask**
 
     // Componentes del enemigo.
     protected Rigidbody rb; // Referencia al Rigidbody del enemigo.
@@ -99,14 +102,25 @@ public class BaseEnemy : MonoBehaviour
     /// <param name="other">Collider del objeto que entró en contacto.</param>
     private void OnTriggerEnter(Collider other)
     {
-        // Si el objeto es una bala del jugador, el enemigo recibe daño.
-        if (other.gameObject.CompareTag("PlayerBullet"))
+        // **1️⃣ Si es una bala, recibe daño**
+        if (((1 << other.gameObject.layer) & bulletLayer) != 0)
         {
             Bullet bullet = other.GetComponent<Bullet>(); // Obtiene la referencia al script de la bala.
             if (bullet != null)
             {
                 TakeDamage(bullet.GetDamage()); // Aplica el daño al enemigo.
                 Destroy(other.gameObject); // Destruye la bala tras el impacto.
+            }
+        }
+
+        // **2️⃣ Si el enemigo choca con el `Player`, inflige daño**
+        if (other.CompareTag("Player")) // ⬅️ Verifica que el `Player` tiene el `Tag` correcto
+        {
+            Player playerScript = other.GetComponent<Player>(); // ⬅️ Obtiene el script `Player`
+            if (playerScript != null)
+            {
+                playerScript.TakeDamage(attackDamage); // ✅ Inflige daño al jugador
+                Debug.Log($"⚠️ {gameObject.name} golpeó al jugador. Le hizo {attackDamage} de daño.");
             }
         }
     }
