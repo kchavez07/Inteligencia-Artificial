@@ -9,58 +9,34 @@ using System.Collections;
 public class NavMeshEscapistEnemy : BaseEnemy
 {
     [Header("Configuración de Movimiento")]
-    [Tooltip("Aceleración del NavMeshAgent.")]
-    public float acceleration = 10f;
-
-    [Tooltip("Velocidad máxima del agente.")]
-    public float maxSpeed = 3.5f;
-
-    [Tooltip("Distancia mínima para intentar escapar del jugador.")]
-    public float fleeDistance = 7f;
+    public float acceleration = 10f; // 🔹 Aceleración del NavMeshAgent
+    public float maxSpeed = 3.5f;    // 🔹 Velocidad máxima del agente
+    public float fleeDistance = 7f;  // 🔹 Qué tan lejos intenta escapar del jugador
 
     [Header("Estados")]
-    [Tooltip("Duración del estado activo (huida).")]
-    public float activeDuration = 10f;
-
-    [Tooltip("Duración del estado cansado (disparo).")]
-    public float tiredDuration = 5f;
-
-    private bool isTired = false;
+    public float activeDuration = 10f; // 🔹 Cuánto dura el estado activo (huye)
+    public float tiredDuration = 5f;   // 🔹 Cuánto dura el estado cansado (se detiene)
+    private bool isTired = false;      // 🔹 Indica si está en modo "cansado" o no
 
     [Header("Disparo")]
-    [Tooltip("Prefab de la bala a instanciar.")]
-    public GameObject bulletPrefab;
-
-    [Tooltip("Punto desde donde se instancian las balas.")]
-    public Transform firePoint;
-
-    [Tooltip("Velocidad de la bala disparada.")]
-    public float bulletSpeed = 10f;
-
-    [Tooltip("Cooldown entre disparos en estado normal.")]
-    public float normalShootCooldown = 2f;
-
-    [Tooltip("Cooldown entre disparos en estado cansado.")]
-    public float tiredShootCooldown = 3.5f;
-
-    private float lastShootTime = 0f;
+    public GameObject bulletPrefab;   // 🔫 Prefab de la bala que va a disparar
+    public Transform firePoint;       // 🔫 Punto desde donde se disparan las balas
+    public float bulletSpeed = 10f;   // 🔫 Velocidad de la bala
+    public float normalShootCooldown = 2f;   // 🔫 Tiempo entre disparos en modo normal
+    public float tiredShootCooldown = 3.5f;  // 🔫 Tiempo entre disparos en modo cansado
+    private float lastShootTime = 0f;        // 🔫 Cuándo fue el último disparo
 
     [Header("Visual")]
-    [Tooltip("Renderer para cambiar el color del enemigo.")]
-    public Renderer enemyRenderer;
+    public Renderer enemyRenderer;     // 🎨 Renderer para cambiar el color del enemigo
+    public Color activeColor = Color.white; // 🎨 Color en modo activo
+    public Color tiredColor = Color.red;    // 🎨 Color en modo cansado
 
-    [Tooltip("Color del enemigo cuando está activo.")]
-    public Color activeColor = Color.white;
+    [Header("Lógica de Visión")]
+    public LayerMask visionMask; // 👁️ Capas que bloquean la visión (paredes, etc.)
 
-    [Tooltip("Color del enemigo cuando está cansado.")]
-    public Color tiredColor = Color.red;
+    private NavMeshAgent agent;       // 👟 Referencia al agente de navegación
+    private Vector3 fleePosition;     // 🏃‍♂️ Posición a la que intenta escapar
 
-    private NavMeshAgent agent;
-    private Vector3 fleePosition;
-
-    /// <summary>
-    /// Inicializa referencias y comienza el estado activo.
-    /// </summary>
     protected override void Start()
     {
         base.Start();
@@ -79,27 +55,21 @@ public class NavMeshEscapistEnemy : BaseEnemy
         StartCoroutine(ActiveState());
     }
 
-    /// <summary>
-    /// Se sobreescribe para ignorar el movimiento heredado de BaseEnemy.
-    /// </summary>
     protected override void FixedUpdate()
     {
-        // Se ignora la lógica de movimiento del BaseEnemy
+        // 🚫 No usamos el movimiento heredado del BaseEnemy porque usamos NavMesh
     }
 
-    /// <summary>
-    /// En estado cansado, permite disparar al jugador.
-    /// </summary>
     private void Update()
     {
         if (isTired)
         {
-            ShootAtPlayer();
+            ShootAtPlayer(); // 🔫 Solo dispara cuando está cansado
         }
     }
 
     /// <summary>
-    /// Comportamiento del estado activo: el enemigo huye del jugador.
+    /// 🔁 Estado activo: intenta huir del jugador o acercarse si no lo ve.
     /// </summary>
     private IEnumerator ActiveState()
     {
@@ -114,29 +84,49 @@ public class NavMeshEscapistEnemy : BaseEnemy
 
         while (!isTired)
         {
-            if (player != null)
+            if (player == null)
             {
-                // Calcula la dirección opuesta al jugador
+                Debug.LogWarning("⚠️ No se encontró al jugador.");
+                yield break;
+            }
+
+            bool hasLineOfSight = HasLineOfSightToPlayer();
+
+            if (!hasLineOfSight)
+            {
+                // 👀 Si no lo ve, se acerca
+                agent.isStopped = false;
+                agent.SetDestination(player.position);
+                Debug.DrawLine(transform.position, player.position, Color.yellow);
+                Debug.Log("👁️ No veo al jugador, me acerco.");
+            }
+            else
+            {
+                // 🏃‍♂️ Si lo ve, intenta huir en dirección opuesta
                 Vector3 fleeDirection = (transform.position - player.position).normalized;
                 fleePosition = transform.position + (fleeDirection * fleeDistance);
 
-                // Intenta encontrar un punto válido en el NavMesh para huir
-                if (TryFindEscapePoint(fleePosition, out Vector3 validFleePosition))
+                if (!TryFindEscapePoint(fleePosition, out Vector3 validFleePosition))
                 {
-                    agent.isStopped = false;
-                    agent.SetDestination(validFleePosition);
-                    Debug.DrawLine(transform.position, validFleePosition, Color.blue, 2f);
+                    // 🔄 Si falla la dirección inicial, intenta la contraria
+                    Vector3 reverseFlee = transform.position - (fleeDirection * fleeDistance);
+                    TryFindEscapePoint(reverseFlee, out validFleePosition);
                 }
+
+                agent.isStopped = false;
+                agent.SetDestination(validFleePosition);
+                Debug.DrawLine(transform.position, validFleePosition, Color.cyan);
+                Debug.Log("🏃‍♂️ Intentando escapar hacia: " + validFleePosition);
             }
 
             yield return new WaitForSeconds(activeDuration);
             StartCoroutine(TiredState());
-            yield break;
+            break;
         }
     }
 
     /// <summary>
-    /// Comportamiento del estado cansado: el enemigo se detiene y dispara.
+    /// 💤 Estado cansado: se detiene y dispara al jugador.
     /// </summary>
     private IEnumerator TiredState()
     {
@@ -158,12 +148,15 @@ public class NavMeshEscapistEnemy : BaseEnemy
     }
 
     /// <summary>
-    /// Dispara una bala hacia el jugador si se cumplen las condiciones.
+    /// 🔫 Dispara una bala hacia el jugador si se cumplen condiciones.
     /// </summary>
     private void ShootAtPlayer()
     {
         if (player == null || bulletPrefab == null || firePoint == null)
+        {
+            Debug.LogWarning("⚠️ No se puede disparar: faltan referencias.");
             return;
+        }
 
         float cooldown = isTired ? tiredShootCooldown : normalShootCooldown;
 
@@ -171,15 +164,14 @@ public class NavMeshEscapistEnemy : BaseEnemy
         {
             lastShootTime = Time.time;
 
-            // Apunta al jugador
-            firePoint.LookAt(player);
+            firePoint.LookAt(player); // 👁️ Apunta al jugador
 
             GameObject bullet = Instantiate(bulletPrefab, firePoint.position, firePoint.rotation);
             Rigidbody rb = bullet.GetComponent<Rigidbody>();
 
             if (rb != null)
             {
-                rb.linearVelocity = firePoint.forward * bulletSpeed;
+                rb.linearVelocity = firePoint.forward * bulletSpeed; // 🚀 Dispara hacia adelante
                 Debug.Log($"🟡 Bala disparada desde {firePoint.position} con dirección {firePoint.forward}");
             }
             else
@@ -190,7 +182,7 @@ public class NavMeshEscapistEnemy : BaseEnemy
     }
 
     /// <summary>
-    /// Intenta encontrar un punto válido del NavMesh cerca de la posición deseada.
+    /// 🔍 Intenta encontrar una posición válida sobre el NavMesh.
     /// </summary>
     private bool TryFindEscapePoint(Vector3 targetPosition, out Vector3 validPosition)
     {
@@ -205,7 +197,28 @@ public class NavMeshEscapistEnemy : BaseEnemy
     }
 
     /// <summary>
-    /// Dibuja gizmos para el FirePoint (visual en escena).
+    /// 👁️ Verifica si el enemigo puede ver al jugador con Raycast y LayerMask.
+    /// </summary>
+    private bool HasLineOfSightToPlayer()
+    {
+        Vector3 direction = (player.position - transform.position).normalized;
+        float distance = Vector3.Distance(transform.position, player.position);
+
+        if (Physics.Raycast(transform.position, direction, out RaycastHit hit, distance, visionMask))
+        {
+            if (hit.transform.CompareTag("Player"))
+            {
+                Debug.DrawRay(transform.position, direction * distance, Color.green);
+                return true;
+            }
+        }
+
+        Debug.DrawRay(transform.position, direction * distance, Color.red);
+        return false;
+    }
+
+    /// <summary>
+    /// 🎯 Dibuja una esfera y línea visual para debug del FirePoint.
     /// </summary>
     private void OnDrawGizmos()
     {
