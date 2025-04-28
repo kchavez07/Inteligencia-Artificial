@@ -25,9 +25,6 @@ public class PlayerFullController : MonoBehaviour
     public int maxHealth = 100; // 💖 Vida máxima del jugador.
     private int currentHealth; // 💖 Vida actual del jugador.
 
-    /// <summary>
-    /// Inicializa componentes.
-    /// </summary>
     private void Start()
     {
         rb = GetComponent<Rigidbody>();
@@ -39,7 +36,7 @@ public class PlayerFullController : MonoBehaviour
             return;
         }
 
-        rb.useGravity = true;
+        rb.useGravity = true; // ✅ Activar gravedad (por si quieres después modificarlo)
         rb.freezeRotation = true;
 
         cameraTransform = Camera.main?.transform;
@@ -48,12 +45,9 @@ public class PlayerFullController : MonoBehaviour
             Debug.LogError("❌ No se encontró la cámara principal.");
         }
 
-        currentHealth = maxHealth;
+        currentHealth = maxHealth; // ✅ Iniciar la vida al máximo
     }
 
-    /// <summary>
-    /// Captura entrada de movimiento y disparo.
-    /// </summary>
     private void Update()
     {
         float moveX = Input.GetAxisRaw("Horizontal");
@@ -81,9 +75,6 @@ public class PlayerFullController : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Aplica movimiento en FixedUpdate.
-    /// </summary>
     private void FixedUpdate()
     {
         if (rb != null)
@@ -92,9 +83,6 @@ public class PlayerFullController : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Maneja la cámara que sigue al jugador.
-    /// </summary>
     private void LateUpdate()
     {
         if (cameraTransform != null)
@@ -115,12 +103,12 @@ public class PlayerFullController : MonoBehaviour
             return;
         }
 
-        GameObject bullet = Instantiate(bulletPrefab, firePoint.position, Quaternion.identity);
+        GameObject bullet = Instantiate(bulletPrefab, firePoint.position, firePoint.rotation);
         Rigidbody bulletRb = bullet.GetComponent<Rigidbody>();
 
         if (bulletRb != null)
         {
-            bulletRb.linearVelocity = transform.forward * bulletSpeed;
+            bulletRb.linearVelocity = firePoint.forward * bulletSpeed; // ✅ Disparo en dirección correcta
         }
     }
 
@@ -130,6 +118,8 @@ public class PlayerFullController : MonoBehaviour
     public void TakeDamage(int damageAmount)
     {
         currentHealth -= damageAmount;
+        currentHealth = Mathf.Clamp(currentHealth, 0, maxHealth); // ✅ Nunca menos de 0
+
         Debug.Log($"🔥 El jugador recibió {damageAmount} de daño. Vida restante: {currentHealth}");
 
         if (currentHealth <= 0)
@@ -144,7 +134,6 @@ public class PlayerFullController : MonoBehaviour
     private void Die()
     {
         Debug.Log("💀 El jugador ha muerto.");
-        // Aquí puedes reiniciar nivel o mostrar UI de Game Over si quieres
-        Destroy(gameObject);
+        Destroy(gameObject); // ✅ (Temporal) Después podemos reiniciar nivel, mostrar Game Over, etc.
     }
 }

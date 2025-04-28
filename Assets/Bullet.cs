@@ -7,7 +7,7 @@ using UnityEngine;
 public class Bullet : MonoBehaviour
 {
     [SerializeField]
-    private LayerMask mask; // **Capa de colisión para la bala (Detecta Enemigos)**
+    private LayerMask mask; // **Capa de colisión para la bala (Detecta Enemigos y Jefe)**
 
     [SerializeField]
     private float damage = 10f; // **💥 Daño de la bala (Configurable en el Inspector)**
@@ -19,11 +19,9 @@ public class Bullet : MonoBehaviour
     private float lifeTime = 5f; // **Duración antes de autodestruirse**
 
     private Rigidbody rb;
+    private Vector3 moveDirection = Vector3.forward; // Dirección por defecto
 
-    /// <summary>
-    /// Método Start: Inicializa la bala y le asigna una velocidad.
-    /// </summary>
-    void Start()
+    private void Start()
     {
         rb = GetComponent<Rigidbody>();
         if (rb == null)
@@ -32,42 +30,58 @@ public class Bullet : MonoBehaviour
             return;
         }
 
-        rb.useGravity = false; // **La bala no es afectada por la gravedad**
-        rb.linearVelocity = transform.forward * speed; // **🚀 Se mueve en la dirección en la que fue disparada**
-        
-        Destroy(gameObject, lifeTime); // **🕒 Se autodestruye después de X segundos**
+        rb.useGravity = false;
+        rb.isKinematic = true; // ✅ Movimiento manual
+
+        Destroy(gameObject, lifeTime);
     }
 
-    /// <summary>
-    /// Detecta si la bala impacta contra un objeto dentro de la capa especificada.
-    /// </summary>
-    /// <param name="other">Collider del objeto con el que la bala colisiona.</param>
+    private void Update()
+    {
+        transform.Translate(moveDirection * speed * Time.deltaTime, Space.World); 
+        // ✅ Mueve la bala en la dirección que le hayas asignado
+    }
+
     private void OnTriggerEnter(Collider other)
     {
         Debug.Log("💥 Impacto con: " + other.gameObject.name + " en la capa " + LayerMask.LayerToName(other.gameObject.layer));
 
-        // **Si el objeto impactado está en la capa correcta, aplica daño**
         if (((1 << other.gameObject.layer) & mask.value) != 0)
         {
             Debug.Log("🔥 Bala impactó un objetivo válido.");
 
-            // **Aplica daño si impacta un enemigo**
             BaseEnemy enemy = other.GetComponent<BaseEnemy>();
             if (enemy != null)
             {
-                enemy.TakeDamage(damage); // ✅ Aplica daño al enemigo
+                enemy.TakeDamage(damage);
             }
 
-            Destroy(gameObject); // **💣 Destruye la bala tras impactar**
+            FinalBossController boss = other.GetComponent<FinalBossController>();
+            if (boss != null)
+            {
+                boss.TakeDamage(damage);
+            }
+        }
+
+        if (!other.CompareTag("Bullet"))
+        {
+            Destroy(gameObject);
         }
     }
 
     /// <summary>
     /// Devuelve la cantidad de daño que hace la bala.
     /// </summary>
-    /// <returns>Valor de daño de la bala.</returns>
     public float GetDamage()
     {
         return damage;
+    }
+
+    /// <summary>
+    /// Permite asignar la dirección de la bala externamente.
+    /// </summary>
+    public void SetDirection(Vector3 direction)
+    {
+        moveDirection = direction.normalized;
     }
 }
